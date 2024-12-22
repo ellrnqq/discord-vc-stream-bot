@@ -1,6 +1,8 @@
 # discord-vc-stream-bot
 Discord.jsで作成したDiscordの読み上げBOTです。
+
 セルフホストして自由に利用してください。
+
 Windows11 Proで動作保証しています。
 
 # 開発環境
