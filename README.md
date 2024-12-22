@@ -7,7 +7,9 @@ Windows11 Proで動作保証しています。
 
 # デモ
 デモでは、VC名「ボイスチャンネル」で読み上げたBOTの音声をVC名「ゲーム」へ中継しています。
+
 自分のしゃべった声も中継させる事ができます。
+
 https://github.com/user-attachments/assets/41bf14c1-4c5f-4305-bc08-3296e23259e3
 
 
