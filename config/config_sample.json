@@ -1,0 +1,27 @@
+{
+    "BotSettings":[
+        {
+            "Version": "1.0.0",
+            "BotToken": "ここにマイク用ボットトークンを設定する",
+            "BotId":"mic_room1",
+            "Prefix": "",
+            "Slash": "/",
+            "BlockPrefix":["!","#","?","$"],
+            "BotUserId":"ここにマイク用ボットIDを設定する",
+            "BotName":"🎙VC中継マイク１"
+        }
+    ],
+    "SubBotSettings":[
+        {
+            "Version": "1.0.0",
+            "BotToken": "ここにスピーカー用ボットトークンを設定する",
+            "BotId":"speaker_room1",
+            "Prefix": "",
+            "Slash": "/",
+            "BlockPrefix":["!","#","?","$"],
+            "BotUserId":"ここにスピーカー用ボットIDを設定する",
+            "BotName":"🔊VC中継スピーカー１"
+        }
+    ],
+    "BotStreamJoinFlg": true
+}
