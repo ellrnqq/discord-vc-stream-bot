@@ -128,7 +128,7 @@ node index.js
   ![image](https://github.com/user-attachments/assets/22d83200-f3a9-42ce-b3f9-fffa9da274ee)
 
 
-- 6.終了する時は、/byrで終了して下さい。
+- 6.終了する時は、/byeで終了して下さい。
 
   ![image](https://github.com/user-attachments/assets/e4962309-ea4f-46d1-92c5-ba5a4a23f1a7)
 
