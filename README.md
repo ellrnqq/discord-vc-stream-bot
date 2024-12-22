@@ -1,5 +1,5 @@
 # discord-vc-stream-bot
-Discord.jsで作成したDiscordの読み上げBOTです。
+Discord.jsで作成した異なるVC間の音声を中継させるBOTです。
 
 セルフホストして自由に利用してください。
 
