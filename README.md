@@ -5,6 +5,13 @@ Discord.jsで作成したDiscordの読み上げBOTです。
 
 Windows11 Proで動作保証しています。
 
+# デモ
+デモでは、VC名「ボイスチャンネル」で読み上げたBOTの音声をVC名「ゲーム」へ中継しています。
+自分のしゃべった声も中継させる事ができます。
+https://github.com/user-attachments/assets/41bf14c1-4c5f-4305-bc08-3296e23259e3
+
+
+
 # 開発環境
 OS (Windows11 pro)
 
@@ -127,10 +134,10 @@ node index.js
 
   ![image](https://github.com/user-attachments/assets/22d83200-f3a9-42ce-b3f9-fffa9da274ee)
 
-
 - 6.終了する時は、/byeで終了して下さい。
 
   ![image](https://github.com/user-attachments/assets/e4962309-ea4f-46d1-92c5-ba5a4a23f1a7)
+
 
 
 ## Special Thanks
