@@ -11,6 +11,7 @@ const { Client, Collection,GatewayIntentBits,Partials } = require("discord.js");
 const { writeBotLog } = require("./utilities/botLogger");
 const config = require("./config/config.json").BotSettings[0];
 const subbotConfig = require("./config/config.json").SubBotSettings;
+const crypto = require('crypto');
 
 //--------------------------------------------------------------
 //DiscordClient生成
@@ -70,6 +71,16 @@ discordClient.slashCommands = new Collection();
 discordClient.reactionAdds = new Collection();
 discordClient.reactionRemoves = new Collection();
 writeBotLog('MainBot ' + config.BotName + ' Collection Loaded Successfully','trace','info');
+
+//--------------------------------------------------------------
+//メインボット用コレクション初期化
+//--------------------------------------------------------------
+discordClient.discordClient = discordClient;
+// 一意の接続コードを生成
+const connectionCode = crypto.randomBytes(4).toString('hex').toUpperCase();
+discordClient.connectionCode = connectionCode;
+writeBotLog('MainBot Collection Loaded Successfully','trace','info');
+writeBotLog(`Generated Connection Code: ${connectionCode}`, 'trace', 'info');
 
 //--------------------------------------------------------------
 //サブボット用コレクション初期化

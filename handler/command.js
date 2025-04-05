@@ -3,7 +3,7 @@
 // CommandHandler
 //
 //--------------------------------------------------------------
-const { Client } = require("discord.js");
+const { Client, Collection } = require("discord.js");
 const { readdirSync } = require("fs");
 const ascii = require("ascii-table");
 const { writeBotLog } = require("../utilities/botLogger");
@@ -188,10 +188,59 @@ reactionRemovesTable.setHeading("ReacrionRemoves", "Load status");
       client.on("ready", async () => {
         //ギルドコマンドで登録
         client.guilds.cache.forEach(async (g) => {
-          //コマンド登録
-          await client.guilds.cache.get(g.id).commands.set(arrayOfSlashCommands);
+          //メインボットのコマンドを登録
+          const mainBotCommands = arrayOfSlashCommands.filter(cmd => 
+            cmd.name === 'stm' || cmd.name === 'bye'
+          );
+          await client.guilds.cache.get(g.id).commands.set(mainBotCommands);
         });
       });
+
+      //サブボットのコマンド登録とハンドラー設定
+      for(let i = 0; i < client.discordSubClient.length; i++) {
+        const subBot = client.discordSubClient[i];
+        
+        // サブボットにコレクションを設定
+        subBot.slashCommands = new Collection();
+        
+        // サブボットのコマンドをコレクションに追加
+        const subBotCommands = arrayOfSlashCommands.filter(cmd => 
+          cmd.name === 'connect' || cmd.name === 'disconnect'
+        );
+        subBotCommands.forEach(cmd => {
+          subBot.slashCommands.set(cmd.name, cmd);
+        });
+
+        // サブボットのready時にコマンドを登録
+        subBot.on("ready", async () => {
+          subBot.guilds.cache.forEach(async (g) => {
+            try {
+              await g.commands.set(subBotCommands);
+              writeBotLog(`SubBot ${i+1} commands registered in guild ${g.name}`, 'trace', 'info');
+            } catch (error) {
+              writeBotLog(`Failed to register commands for SubBot ${i+1} in guild ${g.name}: ${error.message}`, 'trace', 'error');
+            }
+          });
+        });
+
+        // サブボットのインタラクションハンドラーを設定
+        subBot.on('interactionCreate', async (interaction) => {
+          if (!interaction.isCommand()) return;
+
+          const command = subBot.slashCommands.get(interaction.commandName);
+          if (!command) return;
+
+          try {
+            await command.run(subBot, interaction, [], command);
+          } catch (error) {
+            writeBotLog(`Error executing command ${interaction.commandName} for SubBot ${i+1}: ${error.message}`, 'trace', 'error');
+            await interaction.reply({ 
+              content: 'コマンドの実行中にエラーが発生しました。', 
+              ephemeral: true 
+            });
+          }
+        });
+      }
 
      } catch (err) {
        //例外エラー表示

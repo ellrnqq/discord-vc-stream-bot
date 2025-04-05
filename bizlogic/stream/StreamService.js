@@ -5,24 +5,24 @@
 //--------------------------------------------------------------
 const client = require("../../index");
 const { EmbedBuilder } = require("discord.js");
-const { joinVoiceChannel,getVoiceConnection,createAudioPlayer,createAudioResource,
-        EndBehaviorType,NoSubscriberBehavior,StreamType} = require("@discordjs/voice");
+const { joinVoiceChannel, getVoiceConnection, createAudioPlayer, createAudioResource,
+    EndBehaviorType, NoSubscriberBehavior, StreamType } = require("@discordjs/voice");
 const { writeBotLog } = require("../../utilities/botLogger");
 const AudioMixer = require('audio-mixer');
 const Prism = require('prism-media');
 const { PassThrough } = require('stream');
+const { broadcastAudio } = require('./StreamConnectionService');
 require('date-utils');
-const {connectionVC,disConnectionVC} = require("../voice/VoiceService");
+const { connectionVC, disConnectionVC } = require("../voice/VoiceService");
 
 //メインボット設定
 const config = require("../../config/config.json").BotSettings[0];
-const subbotConfig = require("../../config/config.json").SubBotSettings;
 const botStreamJoinFlg = require("../../config/config.json").BotStreamJoinFlg;
 
 //ストリーム開始
-module.exports.startVcStream= startVcStream;
+module.exports.startVcStream = startVcStream;
 //ストリーム終了
-module.exports.endVcStream= endVcStream;
+module.exports.endVcStream = endVcStream;
 //中継参加ユーザーリアクション取得
 module.exports.getStreamVCUserReactionUsers = getStreamVCUserReactionUsers;
 
@@ -31,122 +31,61 @@ module.exports.getStreamVCUserReactionUsers = getStreamVCUserReactionUsers;
  * @param interaction
  * @param userId
  * @param userName
- * @param voice_channels_args
  */
-async function startVcStream(interaction, userId, userName ,voice_channels_args) {
+async function startVcStream(interaction, userId, userName) {
     try {
         //VC情報取得
         const member = await interaction.guild.members.fetch(interaction.member.id);
 
-        //同じVCチェック
-        for (const channelId of voice_channels_args) {
-            if(member.voice.channel.id === channelId){
-                //エラーメッセージ生成
-                interaction.editReply("中継元ボイスチャンネルとは別のボイスチャンネルを選択してください！");
-                const errorEmbed = new EmbedBuilder()
-                                        .setTitle("中継モードエラー発生")
-                                        .setColor("Red")
-                                        .setDescription("startVcStream 中継元「" + `<#${member.voice.channel.id}>`+ "」とは別のボイスチャンネルを選択して下さい。");
-                //メッセージ送信
-                await interaction.channel.send({ embeds: [errorEmbed] });
-                //ログ出力
-                writeBotLog("startVcStream 中継元「" + `<#${member.voice.channel.id}>`+ "」とは別のボイスチャンネルを選択して下さい。" +
-                            " guild.id:" + interaction.guild.id +
-                            " channel.id:" + interaction.channel.id +
-                            " userId:" + userId +
-                            " userName:" + userName,'trace','info');
-                return false;
-            }
-        }
-
         //メインVCコネクション初期化
-        const res = await connectionVC(interaction, userId,userName, true);
-        if (res === false) {return false;};
-        const mainVCconnection = getVoiceConnection(interaction.guild.id,config.BotId)
-
-        //サブVCコネクション初期化
-        var subCollectionId = [];
-        client.subBotVoiceConnection = [];
-        client.subBotVoiceChannels = [];
-        client.subBotVoiceChannelsOKUsersList = [];
-
-        //利用可能なサブボットの数を確認
-        const availableSubBots = Math.min(subbotConfig.length, voice_channels_args.length);
-
-        for(var i=0; i<availableSubBots; i++){
-            subCollectionId.push(interaction.guild.id + voice_channels_args[i] + subbotConfig[i].BotId);
-            //コネクションがある場合
-            if(getVoiceConnection(interaction.guild.id,subbotConfig[i].BotId)){
-                //VCコネクション破棄
-                getVoiceConnection(interaction.guild.id,subbotConfig[i].BotId).destroy();
-            };
-            //中継先のVCコネクション参加
-            const vc = joinVoiceChannel({
-                                            group: subbotConfig[i].BotId,
-                                            guildId: interaction.guildId,
-                                            channelId: voice_channels_args[i],
-                                            adapterCreator: client.discordSubClient[i].guilds.cache.get(interaction.guildId).voiceAdapterCreator,
-                                            selfMute: true,
-                                        });
-            //ボイスコネクション、VCチャンネルをコレクションへセット
-            client.subBotVoiceConnection[i] = vc;
-            client.subBotVoiceChannels[i] = interaction.guild.channels.cache.find((channel) => channel.id === voice_channels_args[i]);
-            writeBotLog("startVcStream SubBot:" + subbotConfig[i].BotName + 
-                        " VCgroup:" + subbotConfig[i].BotId + 
-                        " joinVoiceChannel Successfully", "trace", "info");
-        };
+        const res = await connectionVC(interaction, userId, userName, true);
+        if (res === false) { return false; };
+        const mainVCconnection = getVoiceConnection(interaction.guild.id, config.BotId);
 
         //VC間中継開始メッセージ生成
-        let dispMsg = { name: `<#${member.voice.channel.id}> --> `, value: "上記のVC間中継をしています。" , inline: false };
-        for (let i = 0; i < availableSubBots; i++) {
-            dispMsg.name += `<#${voice_channels_args[i]}>`;
-            if (i < availableSubBots - 1) {
-                dispMsg.name += " + ";
-            }
-        }
-
         const embed = new EmbedBuilder()
-                             .setTitle("🔊VC中継モードを起動しました")
-                             .addFields([dispMsg])
-                             .setColor("Green");
-        await interaction.channel.send({ embeds: [embed]});
+            .setTitle("🔊VC中継モードを起動しました")
+            .setDescription(`接続コード: \`${client.connectionCode}\`\nこのコードをサブボットの/connectコマンドで入力してください。`)
+            .setColor("Green");
+        await interaction.channel.send({ embeds: [embed] });
+        
         //メッセージ表示
         await interaction.editReply("🔊VC中継を開始しました！");
 
         //VC中継ユーザー参加表示送信
         const vcOKuserEmbed = new EmbedBuilder()
-                                       .setTitle("🔊VC中継ユーザーリスト")
-                                        .setDescription("-----")
-                                        .setColor("Green")
-                                        .setTimestamp()
-                                        .setFooter({text:"現在0人"});
-        const garmothAttendEmbedObj =  await interaction.channel.send({ embeds: [vcOKuserEmbed] });
+            .setTitle("🔊VC中継ユーザーリスト")
+            .setDescription("-----")
+            .setColor("Green")
+            .setTimestamp()
+            .setFooter({ text: "現在0人" });
+        const garmothAttendEmbedObj = await interaction.channel.send({ embeds: [vcOKuserEmbed] });
         //参加リアクション追加
         await garmothAttendEmbedObj.react("✅");
 
         //メインリスナー
-        const mainListener = (speakingUserId)=> {
+        const mainListener = (speakingUserId) => {
             //ユーザーIDからユーザー情報取得
             const userinfo = client.users.cache.get(speakingUserId)
             //制限チェック
             //話しているのがBOTの場合
-            if(userinfo.bot == true){
-                if(botStreamJoinFlg == false){
+            if (userinfo.bot == true) {
+                if (botStreamJoinFlg == false) {
                     //botStreamJoinFlg=falseの場合以降の処理しない
                     return;
                 };
             }
             //話しているのがユーザーの場合
-            else{
+            else {
                 //ユーザーリストにIDがない場合、以降の処理しない
-                if((client.subBotVoiceChannelsOKUsersList.includes(speakingUserId) === false)){
+                if ((client.subBotVoiceChannelsOKUsersList.includes(speakingUserId) === false)) {
                     return;
                 };
             }
 
-            writeBotLog("startVcStream MainBot --> SubBot receiver.speaking.on " + 
-                        " userinfo.bot:" + userinfo.bot +
-                        " speakingUserId:" + speakingUserId , "trace", "info");
+            writeBotLog("startVcStream MainBot --> SubBot receiver.speaking.on " +
+                " userinfo.bot:" + userinfo.bot +
+                " speakingUserId:" + speakingUserId, "trace", "info");
 
             //オーディオミキサー生成
             const mixer = new AudioMixer.Mixer({
@@ -163,11 +102,11 @@ async function startVcStream(interaction, userId, userName ,voice_channels_args)
             });
             const audioMixer = mixer;
             audioMixer.addInput(standaloneInput);
+
             // VC音声取得
             const audio = mainVCconnection.receiver.subscribe(speakingUserId, {
                 end: {
                     behavior: EndBehaviorType.AfterSilence,
-                    // Raw変換時にエラー落ちするため100msに設定
                     duration: 100,
                 },
             });
@@ -180,27 +119,13 @@ async function startVcStream(interaction, userId, userName ,voice_channels_args)
                 .pipe(rawStream);
             const p = rawStream.pipe(standaloneInput);
 
-            // オーディオプレーヤー生成
-            const player = createAudioPlayer({
-                behaviors: {
-                    // 聞いている人がいなくても音声を中継してくれるように設定
-                    noSubscriber: NoSubscriberBehavior.Play,
-                },
-            });
-            //オーディオリソース生成
-            const resource = createAudioResource(mixer,
-                {
-                    // VCから取得してきた音声はOpus型なので、Opusに設定
+            // 音声データを接続されているサブボットに配信
+            broadcastAudio(client.connectionCode, {
+                mixer,
+                resource: createAudioResource(mixer, {
                     inputType: StreamType.Raw,
-                },
-            );
-
-            //VCへストリーム再生する処理
-            player.play(resource);
-            //全てのサブボットに音声を送信
-            for (let i = 0; i < availableSubBots; i++) {
-                client.subBotVoiceConnection[i].subscribe(player);
-            }
+                })
+            });
 
             rawStream.on('end', () => {
                 if (this.audioMixer != null) {
@@ -217,20 +142,20 @@ async function startVcStream(interaction, userId, userName ,voice_channels_args)
 
         // OKログ出力
         writeBotLog("startVcStream OK" +
-                    " guild.id:" + interaction.guild.id +
-                    " channel.id:" + interaction.channel.id +
-                    " userId:" + userId +
-                    " userName:" + userName,'trace','info');
+            " guild.id:" + interaction.guild.id +
+            " channel.id:" + interaction.channel.id +
+            " userId:" + userId +
+            " userName:" + userName, 'trace', 'info');
 
         return true;
 
     } catch (err) {
         // 例外エラーログ出力
         writeBotLog("startVcStream Error" +
-                    " guild.id:" + interaction.guild.id +
-                    " channel.id:" + interaction.channel.id +
-                    " userId:" + userId +
-                    " userName:" + userName,"trace","error");
+            " guild.id:" + interaction.guild.id +
+            " channel.id:" + interaction.channel.id +
+            " userId:" + userId +
+            " userName:" + userName, "trace", "error");
         writeBotLog(err, "trace", "error");
         return false;
     };
@@ -245,24 +170,24 @@ async function startVcStream(interaction, userId, userName ,voice_channels_args)
 async function endVcStream(interaction, userId, userName) {
     try {
         // VCコネクション初期化
-        const res = await disConnectionVC(interaction, userId,userName, true);
-        if (res === false) {return false;};
+        const res = await disConnectionVC(interaction, userId, userName, true);
+        if (res === false) { return false; };
 
         // OKログ出力
         writeBotLog("endVcStream OK" +
-                    " guild.id:" + interaction.guild.id +
-                    " channel.id:" + interaction.channel.id +
-                    " userId:" + userId +
-                    " userName:" + userName,'trace','info');
+            " guild.id:" + interaction.guild.id +
+            " channel.id:" + interaction.channel.id +
+            " userId:" + userId +
+            " userName:" + userName, 'trace', 'info');
         return true;
 
     } catch (err) {
         // 例外エラーログ出力
         writeBotLog("endVcStream Error" +
-                    " guild.id:" + interaction.guild.id +
-                    " channel.id:" + interaction.channel.id +
-                    " userId:" + userId +
-                    " userName:" + userName,"trace","error");
+            " guild.id:" + interaction.guild.id +
+            " channel.id:" + interaction.channel.id +
+            " userId:" + userId +
+            " userName:" + userName, "trace", "error");
         writeBotLog(err, "trace", "error");
         return false;
     };
@@ -273,8 +198,8 @@ async function endVcStream(interaction, userId, userName) {
  * @param {*} reaction
  * @param {*} user
  **/
-async function getStreamVCUserReactionUsers(reaction,user){
-    try{
+async function getStreamVCUserReactionUsers(reaction, user) {
+    try {
         reaction.message.reactions.cache.map(async (u_reaction) => {
             //リアクション絞り込み
             if (u_reaction.emoji.name !== "✅") return;
@@ -289,8 +214,8 @@ async function getStreamVCUserReactionUsers(reaction,user){
             let namelist = "";
             client.subBotVoiceChannelsOKUsersList = [];
 
-            for(var i=0;i<array.length;i++){
-                if(array[i].bot === false){
+            for (var i = 0; i < array.length; i++) {
+                if (array[i].bot === false) {
                     //ユーザーの表示名取得
                     var guildUserInfo = await reaction.message.guild.members.fetch(array[i].id);
                     namelist = namelist + guildUserInfo.displayName + "\n";
@@ -301,25 +226,25 @@ async function getStreamVCUserReactionUsers(reaction,user){
             };
 
             //メンバーが０人の場合
-            if(namelist === ""){
+            if (namelist === "") {
                 namelist = "-----";
             };
 
             //埋め込みメッセージ更新
             const embed = new EmbedBuilder()
-                                .setTitle(title)
-                                .setColor("Green")
-                                .setDescription(namelist)
-                                .setTimestamp()
-                                .setFooter({text:"現在"+ (count) + "人"});
-            reaction.message.edit({ embeds: [embed]});
+                .setTitle(title)
+                .setColor("Green")
+                .setDescription(namelist)
+                .setTimestamp()
+                .setFooter({ text: "現在" + (count) + "人" });
+            reaction.message.edit({ embeds: [embed] });
 
             //OKログ出力
             writeBotLog("getStreamVCUserReactionUsers OK" +
-                            " guild.id:" + reaction.message.guild.id +
-                            " channel.id:" + reaction.message.channel.id +
-                            " user.id:" + user.id +
-                            " user.username:" + user.username,'trace','info');
+                " guild.id:" + reaction.message.guild.id +
+                " channel.id:" + reaction.message.channel.id +
+                " user.id:" + user.id +
+                " user.username:" + user.username, 'trace', 'info');
         });
 
         return true;
@@ -327,11 +252,11 @@ async function getStreamVCUserReactionUsers(reaction,user){
     } catch (err) {
         //例外エラーログ出力
         writeBotLog("getStreamVCUserReactionUsers Error " +
-                            " guild.id:" + reaction.message.guild.id +
-                            " channel.id:" + reaction.message.channel.id +
-                            " user.id:" + user.id +
-                            " user.username:" + user.username,'trace','error');
-        writeBotLog(err,'trace','error');
+            " guild.id:" + reaction.message.guild.id +
+            " channel.id:" + reaction.message.channel.id +
+            " user.id:" + user.id +
+            " user.username:" + user.username, 'trace', 'error');
+        writeBotLog(err, 'trace', 'error');
         return false;
     };
 }
