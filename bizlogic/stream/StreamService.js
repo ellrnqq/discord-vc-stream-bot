@@ -35,29 +35,29 @@ module.exports.getStreamVCUserReactionUsers = getStreamVCUserReactionUsers;
  */
 async function startVcStream(interaction, userId, userName ,voice_channels_args) {
     try {
-
         //VC情報取得
         const member = await interaction.guild.members.fetch(interaction.member.id);
 
         //同じVCチェック
-        if(member.voice.channel.id === voice_channels_args[0]){
-            //エラーメッセージ生成
-            interaction.editReply("中継元ボイスチャンネルとは別のボイスチャンネルを選択してください！");
-            const errorEmbed = new EmbedBuilder()
-                                    .setTitle("中継モードエラー発生")
-                                    .setColor("Red")
-                                    .setDescription("startVcStream 中継元「" + `<#${member.voice.channel.id}>`+ "」とは別のボイスチャンネルを選択して下さい。");
-            //メッセージ送信
-            await interaction.channel.send({ embeds: [errorEmbed] });
-            //ログ出力
-            writeBotLog("startVcStream 中継元「" + `<#${member.voice.channel.id}>`+ "」とは別のボイスチャンネルを選択して下さい。" +
-                        " guild.id:" + interaction.guild.id +
-                        " channel.id:" + interaction.channel.id +
-                        " userId:" + userId +
-                        " userName:" + userName,'trace','info');
-            return false;
-        };
-
+        for (const channelId of voice_channels_args) {
+            if(member.voice.channel.id === channelId){
+                //エラーメッセージ生成
+                interaction.editReply("中継元ボイスチャンネルとは別のボイスチャンネルを選択してください！");
+                const errorEmbed = new EmbedBuilder()
+                                        .setTitle("中継モードエラー発生")
+                                        .setColor("Red")
+                                        .setDescription("startVcStream 中継元「" + `<#${member.voice.channel.id}>`+ "」とは別のボイスチャンネルを選択して下さい。");
+                //メッセージ送信
+                await interaction.channel.send({ embeds: [errorEmbed] });
+                //ログ出力
+                writeBotLog("startVcStream 中継元「" + `<#${member.voice.channel.id}>`+ "」とは別のボイスチャンネルを選択して下さい。" +
+                            " guild.id:" + interaction.guild.id +
+                            " channel.id:" + interaction.channel.id +
+                            " userId:" + userId +
+                            " userName:" + userName,'trace','info');
+                return false;
+            }
+        }
 
         //メインVCコネクション初期化
         const res = await connectionVC(interaction, userId,userName, true);
@@ -69,7 +69,11 @@ async function startVcStream(interaction, userId, userName ,voice_channels_args)
         client.subBotVoiceConnection = [];
         client.subBotVoiceChannels = [];
         client.subBotVoiceChannelsOKUsersList = [];
-        for(var i=0;i<subbotConfig.length;i++){
+
+        //利用可能なサブボットの数を確認
+        const availableSubBots = Math.min(subbotConfig.length, voice_channels_args.length);
+
+        for(var i=0; i<availableSubBots; i++){
             subCollectionId.push(interaction.guild.id + voice_channels_args[i] + subbotConfig[i].BotId);
             //コネクションがある場合
             if(getVoiceConnection(interaction.guild.id,subbotConfig[i].BotId)){
@@ -93,7 +97,14 @@ async function startVcStream(interaction, userId, userName ,voice_channels_args)
         };
 
         //VC間中継開始メッセージ生成
-        const dispMsg = { name:`<#${member.voice.channel.id}>` + " --> " + `<#${voice_channels_args[0]}>` ,value:"上記のVC間中継をしています。" ,inline: false }; 
+        let dispMsg = { name: `<#${member.voice.channel.id}> --> `, value: "上記のVC間中継をしています。" , inline: false };
+        for (let i = 0; i < availableSubBots; i++) {
+            dispMsg.name += `<#${voice_channels_args[i]}>`;
+            if (i < availableSubBots - 1) {
+                dispMsg.name += " + ";
+            }
+        }
+
         const embed = new EmbedBuilder()
                              .setTitle("🔊VC中継モードを起動しました")
                              .addFields([dispMsg])
@@ -186,7 +197,11 @@ async function startVcStream(interaction, userId, userName ,voice_channels_args)
 
             //VCへストリーム再生する処理
             player.play(resource);
-            client.subBotVoiceConnection[0].subscribe(player);
+            //全てのサブボットに音声を送信
+            for (let i = 0; i < availableSubBots; i++) {
+                client.subBotVoiceConnection[i].subscribe(player);
+            }
+
             rawStream.on('end', () => {
                 if (this.audioMixer != null) {
                     this.audioMixer.removeInput(standaloneInput);
@@ -219,7 +234,7 @@ async function startVcStream(interaction, userId, userName ,voice_channels_args)
         writeBotLog(err, "trace", "error");
         return false;
     };
-};
+}
 
 /**
  * VCストリーム終了
@@ -229,7 +244,6 @@ async function startVcStream(interaction, userId, userName ,voice_channels_args)
  */
 async function endVcStream(interaction, userId, userName) {
     try {
-
         // VCコネクション初期化
         const res = await disConnectionVC(interaction, userId,userName, true);
         if (res === false) {return false;};
@@ -252,9 +266,7 @@ async function endVcStream(interaction, userId, userName) {
         writeBotLog(err, "trace", "error");
         return false;
     };
-};
-
-
+}
 
 /**
  * 参加リアクションしたユーザー取得&メッセージ更新
@@ -262,9 +274,7 @@ async function endVcStream(interaction, userId, userName) {
  * @param {*} user
  **/
 async function getStreamVCUserReactionUsers(reaction,user){
-
     try{
-
         reaction.message.reactions.cache.map(async (u_reaction) => {
             //リアクション絞り込み
             if (u_reaction.emoji.name !== "✅") return;
@@ -324,4 +334,4 @@ async function getStreamVCUserReactionUsers(reaction,user){
         writeBotLog(err,'trace','error');
         return false;
     };
-};
+}

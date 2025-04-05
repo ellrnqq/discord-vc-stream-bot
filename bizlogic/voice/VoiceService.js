@@ -16,17 +16,16 @@ const subbotConfig = require("../../config/config.json").SubBotSettings;
 //VC接続/切断
 module.exports.connectionVC = connectionVC;
 module.exports.disConnectionVC = disConnectionVC;
+module.exports.connectionSubVC = connectionSubVC;
 
- /**
- * VC再接続処理
+/**
+ * メインボットのVC接続処理
  * @param interaction
  * @param userId
  * @param userName
  */
 async function connectionVC(interaction,userId,userName){
-
     try {
-
         //ユーザーが接続しているVC情報取得
         const member = await interaction.guild.members.fetch(interaction.member.id);
         const memberVC = member.voice.channel;
@@ -76,28 +75,57 @@ async function connectionVC(interaction,userId,userName){
     };
 };
 
- /**
+/**
+ * サブボットのVC接続処理
+ * @param interaction
+ * @param targetVC
+ * @param botIndex
+ */
+async function connectionSubVC(interaction, targetVC, botIndex) {
+    try {
+        const subBot = subbotConfig[botIndex];
+        if (!subBot) {
+            writeBotLog("connectionSubVC Error: Invalid bot index", 'trace', 'error');
+            return false;
+        }
+
+        //VC接続
+        const jvc = joinVoiceChannel({
+            group: subBot.BotId,
+            guildId: interaction.guild.id,
+            channelId: targetVC.id,
+            adapterCreator: interaction.guild.voiceAdapterCreator,
+            selfMute: false,
+        });
+
+        //VC接続ステータスモニタリング
+        jvc.once(VoiceConnectionStatus.Ready, () => {
+            writeBotLog(`connectionSubVC ${subBot.BotName} VoiceConnectionStatusがReady状態になりました!`, 'trace', 'info');
+        });
+
+        return true;
+    } catch (err) {
+        writeBotLog("connectionSubVC Error: " + err, 'trace', 'error');
+        return false;
+    }
+}
+
+/**
  * VC接続切断処理
  * @param interaction
  * @param userId
  * @param userName
  */
 async function disConnectionVC(interaction,userId,userName){
-    //コレクションID取得
-    const collectionId = interaction.guild.id + interaction.channel.id;
     try {
-
-        //コネクションがある場合
+        //メインボットのVCコネクション破棄
         if(getVoiceConnection(interaction.guild.id,botConfig.BotId)){
-            //VCコネクション破棄
             getVoiceConnection(interaction.guild.id,botConfig.BotId).destroy();
         };
 
         //サブボットのVCコネクション破棄
         for(var i=0; i<subbotConfig.length;i++ ){
-            //コネクションがある場合
             if(getVoiceConnection(interaction.guild.id,subbotConfig[i].BotId)){
-                //VCコネクション破棄
                 getVoiceConnection(interaction.guild.id,subbotConfig[i].BotId).destroy();
             };
         };
